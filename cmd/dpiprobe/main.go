@@ -164,7 +164,7 @@ func main() {
 			*timeoutSeconds,
 			int(*port))
 	case "https":
-		fmt.Printf("* TCP connection established. Performing HTTP GET traceroute.\n")
+		fmt.Printf("* TCP connection established. Performing HTTPS ClientHello traceroute.\n")
 		err = runClientHelloTrace(
 			firstSourceMac,
 			outgoingIP,
