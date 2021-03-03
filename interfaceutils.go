@@ -28,7 +28,7 @@ func FindPcapInterfaceName(ipAddress net.IP) (string, error) {
 	return "", nil
 }
 
-// findOutgoingPcapInterfaceNameAndIp Finds outgoing interface name and IP for packet capture 
+// findOutgoingPcapInterfaceNameAndIp Finds outgoing interface name and IP for packet capture
 func findOutgoingPcapInterfaceNameAndIP(targetIP *net.IPAddr) (string, *net.IPAddr, error) {
 	initialConn, err := net.DialUDP("udp", nil, &net.UDPAddr{IP: targetIP.IP, Port: 443})
 	if err != nil {

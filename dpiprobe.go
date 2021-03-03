@@ -1,8 +1,8 @@
 package main
 
 import (
-	"encoding/hex"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -30,10 +30,14 @@ func main() {
 	flag.Parse()
 
 	switch *connectionMode {
-	case "http", "syn": 		
-		if *port == 0 { *port = 80 }
-	case "https": 
-		if *port == 0 { *port = 443 }
+	case "http", "syn":
+		if *port == 0 {
+			*port = 80
+		}
+	case "https":
+		if *port == 0 {
+			*port = 443
+		}
 	default:
 		fmt.Printf("Invalid mode: (%s) \nUsage: dpiprobe --mode (http or https or syn) \n", *connectionMode)
 		os.Exit(1)
@@ -181,7 +185,7 @@ func main() {
 		var recordHeader = []byte{0x16, 0x03, 0x01}
 		var recordHeaderBytes = make([]byte, 2)
 		var clientHelloUInt16 = uint16(len(rawClientHello))
-		binary.BigEndian.PutUint16(recordHeaderBytes, clientHelloUInt16) 
+		binary.BigEndian.PutUint16(recordHeaderBytes, clientHelloUInt16)
 		var fullClientHello = append(recordHeader, recordHeaderBytes...)
 		fullClientHello = append(fullClientHello, rawClientHello...) // append record header + clienthello size to payload
 
@@ -201,7 +205,7 @@ func main() {
 			*timeoutSeconds,
 			fullClientHello,
 			int(*port))
-	case "syn": 
+	case "syn":
 		fmt.Println("Running in TCP syn mode")
 		if targetConn != nil {
 			_ = targetConn.Close()
@@ -279,10 +283,11 @@ type LivePacketSource struct {
 	PacketChan chan gopacket.Packet
 	PcapHandle *pcap.Handle
 }
-// Close unexported 
+
+// Close unexported
 func (p *LivePacketSource) Close() {
-	p.PcapHandle.Close() 
-} 
+	p.PcapHandle.Close()
+}
 
 func runHTTPGetTrace(
 	sourceMac *net.HardwareAddr,
