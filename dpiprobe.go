@@ -22,9 +22,9 @@ import (
 )
 
 func main() {
-	maxTtl := flag.Uint("ttl", 30, "Maximum number of hops.")
+	maxTTL := flag.Uint("ttl", 30, "Maximum number of hops.")
 	connectionMode := flag.String("mode", "", "Connection mode: (syn|http|https).")
-	disableIpPtrLookup := flag.Bool("n", false, "Disable IP PTR lookup.")
+	disableIPPTRLookup := flag.Bool("n", false, "Disable IP PTR lookup.")
 	timeoutSeconds := flag.Uint("t", 15, "Timeout for each hop.")
 	port := flag.Uint("port", 0, "Port number.")
 	flag.Parse()
@@ -51,14 +51,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *maxTtl < 1 {
+	if *maxTTL < 1 {
 		fmt.Printf("Maximum number of hops must be 1 or greater.\n")
 		os.Exit(1)
 	}
 
-	maxTtlByte := uint8(*maxTtl)
+	maxTTLByte := uint8(*maxTTL)
 
-	if *maxTtl > 255 {
+	if *maxTTL > 255 {
 		fmt.Printf("Maximum number of hops cannot exceed 255.\n")
 		os.Exit(1)
 	}
@@ -68,19 +68,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	targetIp, err := net.ResolveIPAddr("ip", encodedDomain)
+	targetIP, err := net.ResolveIPAddr("ip", encodedDomain)
 	if err != nil {
 		fmt.Printf("Failed to resolve target domain to IP address: %s\n", err)
 		os.Exit(2)
 	}
 
-	outgoingPcapInterfaceName, outgoingIp, err := findOutgoingPcapInterfaceNameAndIp(targetIp)
+	outgoingPcapInterfaceName, outgoingIP, err := findOutgoingPcapInterfaceNameAndIP(targetIP)
 	if err != nil {
 		fmt.Printf("Outgoing interface lookup error: %s\n", err)
 		os.Exit(2)
 	}
 
-	livePacketSource, err := startPacketCapture(outgoingPcapInterfaceName, targetIp, *port)
+	livePacketSource, err := startPacketCapture(outgoingPcapInterfaceName, targetIP, *port)
 	if err != nil {
 		fmt.Printf("Failed to start packet capture on interface '%s': %s\n", outgoingPcapInterfaceName, err)
 		os.Exit(3)
@@ -90,13 +90,13 @@ func main() {
 	var targetConn net.Conn = nil
 
 	var frame gopacket.Packet
-	var firstIpPacket *layers.IPv4
-	var firstAckTcpPacket *layers.TCP
+	var firstIPPacket *layers.IPv4
+	var firstAckTCPPacket *layers.TCP
 	var firstIcmpPacket *layers.ICMPv4
 	var firstSourceMac *net.HardwareAddr
 	var firstTargetMac *net.HardwareAddr
 
-	targetConn, err = net.Dial("tcp", net.JoinHostPort(targetIp.String(), fmt.Sprintf("%d", *port)))
+	targetConn, err = net.Dial("tcp", net.JoinHostPort(targetIP.String(), fmt.Sprintf("%d", *port)))
 	if err != nil {
 		fmt.Printf("Failed to establish connection to %s: %s\n", domain, err)
 	}
@@ -134,38 +134,38 @@ func main() {
 			os.Exit(4)
 		}
 
-		firstIpPacket = frame.NetworkLayer().(*layers.IPv4)
-		firstAckTcpPacket, _ = frame.Layer(layers.LayerTypeTCP).(*layers.TCP)
+		firstIPPacket = frame.NetworkLayer().(*layers.IPv4)
+		firstAckTCPPacket, _ = frame.Layer(layers.LayerTypeTCP).(*layers.TCP)
 		firstIcmpPacket, _ = frame.Layer(layers.LayerTypeICMPv4).(*layers.ICMPv4)
 
-		if firstAckTcpPacket == nil {
-			if firstIpPacket != nil && firstIcmpPacket != nil {
-				fmt.Printf("* Received ICMP TTL exceeded from %s.\n", firstIpPacket.SrcIP.String())
+		if firstAckTCPPacket == nil {
+			if firstIPPacket != nil && firstIcmpPacket != nil {
+				fmt.Printf("* Received ICMP TTL exceeded from %s.\n", firstIPPacket.SrcIP.String())
 			} else if frame != nil {
 				fmt.Printf("* Received unexpected packet: %s\n", frame.TransportLayer())
 				os.Exit(5)
 			}
-		} else if firstAckTcpPacket.RST {
+		} else if firstAckTCPPacket.RST {
 			fmt.Printf("* Received TCP Reset.\n")
-			firstAckTcpPacket = nil
+			firstAckTCPPacket = nil
 		}
 	}
 
 	switch *connectionMode {
 	case "http":
 		fmt.Println("Running in HTTP mode")
-		err = runHttpGetTrace(
+		err = runHTTPGetTrace(
 			firstSourceMac,
-			outgoingIp,
+			outgoingIP,
 			firstTargetMac,
-			targetIp,
+			targetIP,
 			encodedDomain,
-			firstAckTcpPacket.DstPort,
-			firstAckTcpPacket.Ack,
-			firstAckTcpPacket.Seq+1,
+			firstAckTCPPacket.DstPort,
+			firstAckTCPPacket.Ack,
+			firstAckTCPPacket.Seq+1,
 			livePacketSource,
-			maxTtlByte,
-			*disableIpPtrLookup,
+			maxTTLByte,
+			*disableIPPTRLookup,
 			*timeoutSeconds,
 			int(*port))
 	case "https":
@@ -188,16 +188,16 @@ func main() {
 		fmt.Printf("* TCP connection established. Performing HTTP GET traceroute.\n")
 		err = runClientHellotrace(
 			firstSourceMac,
-			outgoingIp,
+			outgoingIP,
 			firstTargetMac,
-			targetIp,
+			targetIP,
 			encodedDomain,
-			firstAckTcpPacket.DstPort,
-			firstAckTcpPacket.Ack,
-			firstAckTcpPacket.Seq+1,
+			firstAckTCPPacket.DstPort,
+			firstAckTCPPacket.Ack,
+			firstAckTCPPacket.Seq+1,
 			livePacketSource,
-			maxTtlByte,
-			*disableIpPtrLookup,
+			maxTTLByte,
+			*disableIPPTRLookup,
 			*timeoutSeconds,
 			fullClientHello,
 			int(*port))
@@ -222,14 +222,14 @@ func main() {
 			}
 		}
 
-		err = runTcpSynTrace(
+		err = runTCPSynTrace(
 			firstSourceMac,
-			outgoingIp,
+			outgoingIP,
 			firstTargetMac,
-			targetIp,
+			targetIP,
 			livePacketSource,
-			maxTtlByte,
-			*disableIpPtrLookup,
+			maxTTLByte,
+			*disableIPPTRLookup,
 			*timeoutSeconds,
 			int(*port))
 	}
@@ -242,25 +242,25 @@ func main() {
 	fmt.Printf("* Probe complete.\n")
 }
 
-func startPacketCapture(outgoingInterfaceName string, targetIp *net.IPAddr, port uint) (pcapSource *LivePacketSource, err error) {
+func startPacketCapture(outgoingInterfaceName string, targetIP *net.IPAddr, port uint) (pcapSource *LivePacketSource, err error) {
 	liveHandle, err := pcap.OpenLive(outgoingInterfaceName, 65535, true, pcap.BlockForever)
 	if err != nil {
 		return nil, err
 	}
 
-	targetIpInt := big.NewInt(0)
-	targetIpInt.SetBytes(targetIp.IP.To4())
-	targetIpHex := hex.EncodeToString(targetIpInt.Bytes())
+	targetIPInt := big.NewInt(0)
+	targetIPInt.SetBytes(targetIP.IP.To4())
+	targetIPHex := hex.EncodeToString(targetIPInt.Bytes())
 
 	captureFilter := fmt.Sprintf(
 		"(tcp and dst %s and dst port %d and tcp[tcpflags] & tcp-syn == tcp-syn) or"+
 			" (tcp and src %s and port %d and (tcp[tcpflags] & (tcp-ack|tcp-rst|tcp-fin) != 0)) or"+
 			" (icmp[icmptype] == icmp-timxceed and icmp[17] == 6 and icmp[24:4] == 0x%s and icmp[30:2] == %d)",
-		targetIp.String(),
+		targetIP.String(),
 		port,
-		targetIp.String(),
+		targetIP.String(),
 		port,
-		targetIpHex,
+		targetIPHex,
 		port)
 
 	if err := liveHandle.SetBPFFilter(captureFilter); err != nil {
@@ -274,27 +274,28 @@ func startPacketCapture(outgoingInterfaceName string, targetIp *net.IPAddr, port
 	return pcapSource, nil
 }
 
+// LivePacketSource unexported
 type LivePacketSource struct {
 	PacketChan chan gopacket.Packet
 	PcapHandle *pcap.Handle
 }
-
+// Close unexported 
 func (p *LivePacketSource) Close() {
-	p.PcapHandle.Close()
-}
+	p.PcapHandle.Close() 
+} 
 
-func runHttpGetTrace(
+func runHTTPGetTrace(
 	sourceMac *net.HardwareAddr,
-	sourceIp *net.IPAddr,
+	sourceIP *net.IPAddr,
 	targetMac *net.HardwareAddr,
-	targetIp *net.IPAddr,
+	targetIP *net.IPAddr,
 	domain string,
 	sourcePort layers.TCPPort,
 	tcpSeqNumber uint32,
 	tcpAckNumber uint32,
 	livePacketSource *LivePacketSource,
-	maxTtl uint8,
-	disableIpPtrLookup bool,
+	maxTTL uint8,
+	disableIPPTRLookup bool,
 	timeoutSeconds uint,
 	port int) error {
 
@@ -315,8 +316,8 @@ func runHttpGetTrace(
 				Flags:    layers.IPv4DontFragment,
 				TTL:      ttl,
 				Protocol: layers.IPProtocolTCP,
-				SrcIP:    sourceIp.IP,
-				DstIP:    targetIp.IP,
+				SrcIP:    sourceIP.IP,
+				DstIP:    targetIP.IP,
 			}
 			transportLayer := layers.TCP{
 				SrcPort: sourcePort,
@@ -334,23 +335,23 @@ func runHttpGetTrace(
 			return nil
 		},
 		livePacketSource,
-		maxTtl,
-		disableIpPtrLookup,
+		maxTTL,
+		disableIPPTRLookup,
 		timeoutSeconds)
 }
 
 func runClientHellotrace(
 	sourceMac *net.HardwareAddr,
-	sourceIp *net.IPAddr,
+	sourceIP *net.IPAddr,
 	targetMac *net.HardwareAddr,
-	targetIp *net.IPAddr,
+	targetIP *net.IPAddr,
 	domain string,
 	sourcePort layers.TCPPort,
 	tcpSeqNumber uint32,
 	tcpAckNumber uint32,
 	livePacketSource *LivePacketSource,
-	maxTtl uint8,
-	disableIpPtrLookup bool,
+	maxTTL uint8,
+	disableIPPTRLookup bool,
 	timeoutSeconds uint,
 	rawClientHello []byte,
 	port int) error {
@@ -372,8 +373,8 @@ func runClientHellotrace(
 				Flags:    layers.IPv4DontFragment,
 				TTL:      ttl,
 				Protocol: layers.IPProtocolTCP,
-				SrcIP:    sourceIp.IP,
-				DstIP:    targetIp.IP,
+				SrcIP:    sourceIP.IP,
+				DstIP:    targetIP.IP,
 			}
 			transportLayer := layers.TCP{
 				SrcPort: sourcePort,
@@ -390,19 +391,19 @@ func runClientHellotrace(
 			return nil
 		},
 		livePacketSource,
-		maxTtl,
-		disableIpPtrLookup,
+		maxTTL,
+		disableIPPTRLookup,
 		timeoutSeconds)
 }
 
-func runTcpSynTrace(
+func runTCPSynTrace(
 	sourceMac *net.HardwareAddr,
-	sourceIp *net.IPAddr,
+	sourceIP *net.IPAddr,
 	targetMac *net.HardwareAddr,
-	targetIp *net.IPAddr,
+	targetIP *net.IPAddr,
 	livePacketSource *LivePacketSource,
-	maxTtl uint8,
-	disableIpPtrLookup bool,
+	maxTTL uint8,
+	disableIPPTRLookup bool,
 	timeoutSeconds uint,
 	port int) error {
 	return runTrace(
@@ -422,8 +423,8 @@ func runTcpSynTrace(
 				Flags:    layers.IPv4DontFragment,
 				TTL:      ttl,
 				Protocol: layers.IPProtocolTCP,
-				SrcIP:    sourceIp.IP,
-				DstIP:    targetIp.IP,
+				SrcIP:    sourceIP.IP,
+				DstIP:    targetIP.IP,
 			}
 			transportLayer := layers.TCP{
 				SrcPort: layers.TCPPort(uint16(rand.Uint32())),
@@ -439,8 +440,8 @@ func runTcpSynTrace(
 			return nil
 		},
 		livePacketSource,
-		maxTtl,
-		disableIpPtrLookup,
+		maxTTL,
+		disableIPPTRLookup,
 		timeoutSeconds)
 }
 
@@ -448,11 +449,11 @@ func runTrace(
 	firstAckSeqNumber uint32,
 	sendProbeFunc func(handle *pcap.Handle, ttl uint8) error,
 	livePacketSource *LivePacketSource,
-	maxTtl uint8,
-	disableIpPtrLookup bool,
+	maxTTL uint8,
+	disableIPPTRLookup bool,
 	timeoutSeconds uint) error {
 
-	for ttl := uint8(1); ttl <= maxTtl; ttl++ {
+	for ttl := uint8(1); ttl <= maxTTL; ttl++ {
 		fmt.Printf("%d. ", ttl)
 
 		var start = time.Now()
@@ -483,7 +484,7 @@ func runTrace(
 			icmpPacket, _ := frame.Layer(layers.LayerTypeICMPv4).(*layers.ICMPv4)
 
 			if ipPacket == nil {
-				return errors.New(fmt.Sprintf("Unexpected packet: %s", frame))
+				return fmt.Errorf("Unexpected packet: %s", frame)
 			}
 
 			if tcpPacket != nil &&
@@ -492,15 +493,15 @@ func runTrace(
 				continue
 			}
 
-			var ipSourceDnsNameFragment = ""
-			if !disableIpPtrLookup {
-				ipSourceDnsNames, _ := net.LookupAddr(ipPacket.SrcIP.String())
-				if ipSourceDnsNames == nil {
-					ipSourceDnsNames = []string{}
+			var IPSourceDNSNameFragment = ""
+			if !disableIPPTRLookup {
+				IPSourceDNSNames, _ := net.LookupAddr(ipPacket.SrcIP.String())
+				if IPSourceDNSNames == nil {
+					IPSourceDNSNames = []string{}
 				}
-				if len(ipSourceDnsNames) > 0 {
-					dnsName := strings.TrimRight(ipSourceDnsNames[0], ".")
-					ipSourceDnsNameFragment = "(" + dnsName + ") "
+				if len(IPSourceDNSNames) > 0 {
+					dnsName := strings.TrimRight(IPSourceDNSNames[0], ".")
+					IPSourceDNSNameFragment = "(" + dnsName + ") "
 				}
 			}
 
@@ -520,7 +521,7 @@ func runTrace(
 					tcpFlag = "RST"
 				}
 
-				fmt.Printf("%s %s[TCP %s] %s\n", ipPacket.SrcIP, ipSourceDnsNameFragment, tcpFlag, elapsedTime)
+				fmt.Printf("%s %s[TCP %s] %s\n", ipPacket.SrcIP, IPSourceDNSNameFragment, tcpFlag, elapsedTime)
 
 				if tcpPacket.FIN {
 					return errors.New("remote peer actively closed the connection")
@@ -531,7 +532,7 @@ func runTrace(
 			}
 
 			if icmpPacket != nil {
-				fmt.Printf("%s %s%s\n", ipPacket.SrcIP, ipSourceDnsNameFragment, elapsedTime)
+				fmt.Printf("%s %s%s\n", ipPacket.SrcIP, IPSourceDNSNameFragment, elapsedTime)
 				break
 			}
 		}
