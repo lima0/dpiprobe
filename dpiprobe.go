@@ -173,22 +173,6 @@ func main() {
 			*timeoutSeconds,
 			int(*port))
 	case "https":
-		fmt.Println("Running in HTTPS ClientHello mode")
-		// use uTLS library to create a google chrome fingerprinted clienthello using empty connection
-		var conn net.Conn = nil
-		uTLSConn := tls.UClient(conn, &tls.Config{ServerName: domain}, tls.HelloChrome_Auto)
-		var err = uTLSConn.BuildHandshakeState()
-		if err != nil {
-			return
-		}
-		var rawClientHello = uTLSConn.HandshakeState.Hello.Raw
-		var recordHeader = []byte{0x16, 0x03, 0x01}
-		var recordHeaderBytes = make([]byte, 2)
-		var clientHelloUInt16 = uint16(len(rawClientHello))
-		binary.BigEndian.PutUint16(recordHeaderBytes, clientHelloUInt16)
-		var fullClientHello = append(recordHeader, recordHeaderBytes...)
-		fullClientHello = append(fullClientHello, rawClientHello...) // append record header + clienthello size to payload
-
 		fmt.Printf("* TCP connection established. Performing HTTP GET traceroute.\n")
 		err = runClientHellotrace(
 			firstSourceMac,
@@ -203,7 +187,6 @@ func main() {
 			maxTTLByte,
 			*disableIPPTRLookup,
 			*timeoutSeconds,
-			fullClientHello,
 			int(*port))
 	case "syn":
 		fmt.Println("Running in TCP syn mode")
@@ -358,8 +341,23 @@ func runClientHellotrace(
 	maxTTL uint8,
 	disableIPPTRLookup bool,
 	timeoutSeconds uint,
-	rawClientHello []byte,
 	port int) error {
+
+	fmt.Println("Running in HTTPS ClientHello mode")
+	// use uTLS library to create a google chrome fingerprinted clienthello using empty connection
+	var conn net.Conn = nil
+	uTLSConn := tls.UClient(conn, &tls.Config{ServerName: domain}, tls.HelloChrome_Auto)
+	var err = uTLSConn.BuildHandshakeState()
+	if err != nil {
+		return err
+	}
+	rawClientHello := uTLSConn.HandshakeState.Hello.Raw
+	recordHeader := []byte{0x16, 0x03, 0x01}
+	recordHeaderBytes := make([]byte, 2)
+	clientHelloUInt16 := uint16(len(rawClientHello))
+	binary.BigEndian.PutUint16(recordHeaderBytes, clientHelloUInt16)
+	fullClientHello := append(recordHeader, recordHeaderBytes...)
+	fullClientHello = append(fullClientHello, rawClientHello...) // append record header + clienthello size to payload
 
 	return runTrace(
 		tcpAckNumber,
@@ -390,7 +388,7 @@ func runClientHellotrace(
 				ACK:     true,
 				PSH:     true,
 			}
-			if err := sendRawPacket(handle, linkLayer, networkLayer, transportLayer, rawClientHello); err != nil {
+			if err := sendRawPacket(handle, linkLayer, networkLayer, transportLayer, fullClientHello); err != nil {
 				return err
 			}
 			return nil
