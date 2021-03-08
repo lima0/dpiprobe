@@ -323,7 +323,7 @@ func sendRawPacket(
 		return nil
 	}
 
-	conn, err := net.Dial("ip4:tcp", networkLayer.DstIP.String()+fmt.Sprintf("%d", transportLayer.DstPort))
+	conn, err := net.Dial("ip4:tcp", networkLayer.DstIP.String()+":"+fmt.Sprintf("%d", transportLayer.DstPort))
 	if err != nil {
 		return err
 	}

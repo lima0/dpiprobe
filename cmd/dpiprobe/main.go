@@ -30,7 +30,7 @@ func main() {
 			*port = 443
 		}
 	default:
-		fmt.Printf("Invalid mode: (%s) \nUsage: dpiprobe --mode (http or https or syn) \n", *connectionMode)
+		fmt.Printf("Invalid mode (%s) \nRun \"dpiprobe --help\" for usage instructions.\n", *connectionMode)
 		os.Exit(1)
 	}
 
@@ -164,7 +164,6 @@ func main() {
 			*timeoutSeconds,
 			int(*port))
 	case "https":
-		fmt.Printf("* TCP connection established. Performing HTTPS ClientHello traceroute.\n")
 		err = runClientHelloTrace(
 			firstSourceMac,
 			outgoingIP,
