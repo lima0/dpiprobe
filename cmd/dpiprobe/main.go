@@ -48,7 +48,7 @@ func main() {
 
 	domain := flag.Arg(0)
 	if domain == "" {
-		fmt.Printf("Specify blocked domain to probe with http.\n")
+		fmt.Printf("Specify domain to probe.\n")
 		os.Exit(1)
 	}
 
