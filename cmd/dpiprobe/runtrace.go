@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -12,22 +11,21 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/refraction-networking/utls"
 	"golang.org/x/net/ipv4"
 )
 
-func runHTTPGetTrace(
+func runHttpGetTrace(
 	sourceMac *net.HardwareAddr,
-	sourceIP *net.IPAddr,
+	sourceIp *net.IPAddr,
 	targetMac *net.HardwareAddr,
-	targetIP *net.IPAddr,
+	targetIp *net.IPAddr,
 	domain string,
 	sourcePort layers.TCPPort,
 	tcpSeqNumber uint32,
 	tcpAckNumber uint32,
 	livePacketSource *LivePacketSource,
-	maxTTL uint8,
-	disableIPPTRLookup bool,
+	maxTtl uint8,
+	disableIpPtrLookup bool,
 	timeoutSeconds uint,
 	port int) error {
 
@@ -48,8 +46,8 @@ func runHTTPGetTrace(
 				Flags:    layers.IPv4DontFragment,
 				TTL:      ttl,
 				Protocol: layers.IPProtocolTCP,
-				SrcIP:    sourceIP.IP,
-				DstIP:    targetIP.IP,
+				SrcIP:    sourceIp.IP,
+				DstIP:    targetIp.IP,
 			}
 			transportLayer := layers.TCP{
 				SrcPort: sourcePort,
@@ -67,41 +65,25 @@ func runHTTPGetTrace(
 			return nil
 		},
 		livePacketSource,
-		maxTTL,
-		disableIPPTRLookup,
+		maxTtl,
+		disableIpPtrLookup,
 		timeoutSeconds)
 }
 
 func runClientHelloTrace(
 	sourceMac *net.HardwareAddr,
-	sourceIP *net.IPAddr,
+	sourceIp *net.IPAddr,
 	targetMac *net.HardwareAddr,
-	targetIP *net.IPAddr,
-	domain string,
+	targetIp *net.IPAddr,
 	sourcePort layers.TCPPort,
 	tcpSeqNumber uint32,
 	tcpAckNumber uint32,
 	livePacketSource *LivePacketSource,
-	maxTTL uint8,
-	disableIPPTRLookup bool,
+	maxTtl uint8,
+	disableIpPtrLookup bool,
 	timeoutSeconds uint,
+	rawClientHello []byte,
 	port int) error {
-
-	fmt.Println("Running in HTTPS ClientHello mode")
-	// use uTLS library to create a google chrome fingerprinted ClientHello using empty connection
-	var conn net.Conn = nil
-	uTLSConn := tls.UClient(conn, &tls.Config{ServerName: domain}, tls.HelloChrome_Auto)
-	var err = uTLSConn.BuildHandshakeState()
-	if err != nil {
-		return err
-	}
-	rawClientHello := uTLSConn.HandshakeState.Hello.Raw
-	recordHeader := []byte{0x16, 0x03, 0x01}
-	recordHeaderBytes := make([]byte, 2)
-	clientHelloUInt16 := uint16(len(rawClientHello))
-	binary.BigEndian.PutUint16(recordHeaderBytes, clientHelloUInt16)
-	fullClientHello := append(recordHeader, recordHeaderBytes...)
-	fullClientHello = append(fullClientHello, rawClientHello...) // append record header + ClientHello size to payload
 
 	return runTrace(
 		tcpAckNumber,
@@ -120,8 +102,8 @@ func runClientHelloTrace(
 				Flags:    layers.IPv4DontFragment,
 				TTL:      ttl,
 				Protocol: layers.IPProtocolTCP,
-				SrcIP:    sourceIP.IP,
-				DstIP:    targetIP.IP,
+				SrcIP:    sourceIp.IP,
+				DstIP:    targetIp.IP,
 			}
 			transportLayer := layers.TCP{
 				SrcPort: sourcePort,
@@ -132,25 +114,25 @@ func runClientHelloTrace(
 				ACK:     true,
 				PSH:     true,
 			}
-			if err := sendRawPacket(handle, linkLayer, networkLayer, transportLayer, fullClientHello); err != nil {
+			if err := sendRawPacket(handle, linkLayer, networkLayer, transportLayer, rawClientHello); err != nil {
 				return err
 			}
 			return nil
 		},
 		livePacketSource,
-		maxTTL,
-		disableIPPTRLookup,
+		maxTtl,
+		disableIpPtrLookup,
 		timeoutSeconds)
 }
 
-func runTCPSynTrace(
+func runTcpSynTrace(
 	sourceMac *net.HardwareAddr,
-	sourceIP *net.IPAddr,
+	sourceIp *net.IPAddr,
 	targetMac *net.HardwareAddr,
-	targetIP *net.IPAddr,
+	targetIp *net.IPAddr,
 	livePacketSource *LivePacketSource,
-	maxTTL uint8,
-	disableIPPTRLookup bool,
+	maxTtl uint8,
+	disableIpPtrLookup bool,
 	timeoutSeconds uint,
 	port int) error {
 	return runTrace(
@@ -170,8 +152,8 @@ func runTCPSynTrace(
 				Flags:    layers.IPv4DontFragment,
 				TTL:      ttl,
 				Protocol: layers.IPProtocolTCP,
-				SrcIP:    sourceIP.IP,
-				DstIP:    targetIP.IP,
+				SrcIP:    sourceIp.IP,
+				DstIP:    targetIp.IP,
 			}
 			transportLayer := layers.TCP{
 				SrcPort: layers.TCPPort(uint16(rand.Uint32())),
@@ -187,8 +169,8 @@ func runTCPSynTrace(
 			return nil
 		},
 		livePacketSource,
-		maxTTL,
-		disableIPPTRLookup,
+		maxTtl,
+		disableIpPtrLookup,
 		timeoutSeconds)
 }
 
@@ -196,11 +178,11 @@ func runTrace(
 	firstAckSeqNumber uint32,
 	sendProbeFunc func(handle *pcap.Handle, ttl uint8) error,
 	livePacketSource *LivePacketSource,
-	maxTTL uint8,
-	disableIPPTRLookup bool,
+	maxTtl uint8,
+	disableIpPtrLookup bool,
 	timeoutSeconds uint) error {
 
-	for ttl := uint8(1); ttl <= maxTTL; ttl++ {
+	for ttl := uint8(1); ttl <= maxTtl; ttl++ {
 		fmt.Printf("%d. ", ttl)
 
 		var start = time.Now()
@@ -231,7 +213,7 @@ func runTrace(
 			icmpPacket, _ := frame.Layer(layers.LayerTypeICMPv4).(*layers.ICMPv4)
 
 			if ipPacket == nil {
-				return fmt.Errorf("Unexpected packet: %s", frame)
+				return errors.New(fmt.Sprintf("Unexpected packet: %s", frame))
 			}
 
 			if tcpPacket != nil &&
@@ -240,15 +222,15 @@ func runTrace(
 				continue
 			}
 
-			var IPSourceDNSNameFragment = ""
-			if !disableIPPTRLookup {
-				IPSourceDNSNames, _ := net.LookupAddr(ipPacket.SrcIP.String())
-				if IPSourceDNSNames == nil {
-					IPSourceDNSNames = []string{}
+			var ipSourceDnsNameFragment = ""
+			if !disableIpPtrLookup {
+				ipSourceDnsNames, _ := net.LookupAddr(ipPacket.SrcIP.String())
+				if ipSourceDnsNames == nil {
+					ipSourceDnsNames = []string{}
 				}
-				if len(IPSourceDNSNames) > 0 {
-					dnsName := strings.TrimRight(IPSourceDNSNames[0], ".")
-					IPSourceDNSNameFragment = "(" + dnsName + ") "
+				if len(ipSourceDnsNames) > 0 {
+					dnsName := strings.TrimRight(ipSourceDnsNames[0], ".")
+					ipSourceDnsNameFragment = "(" + dnsName + ") "
 				}
 			}
 
@@ -268,7 +250,7 @@ func runTrace(
 					tcpFlag = "RST"
 				}
 
-				fmt.Printf("%s %s[TCP %s] %s\n", ipPacket.SrcIP, IPSourceDNSNameFragment, tcpFlag, elapsedTime)
+				fmt.Printf("%s %s[TCP %s] %s\n", ipPacket.SrcIP, ipSourceDnsNameFragment, tcpFlag, elapsedTime)
 
 				if tcpPacket.FIN {
 					return errors.New("remote peer actively closed the connection")
@@ -279,7 +261,7 @@ func runTrace(
 			}
 
 			if icmpPacket != nil {
-				fmt.Printf("%s %s%s\n", ipPacket.SrcIP, IPSourceDNSNameFragment, elapsedTime)
+				fmt.Printf("%s %s%s\n", ipPacket.SrcIP, ipSourceDnsNameFragment, elapsedTime)
 				break
 			}
 		}
